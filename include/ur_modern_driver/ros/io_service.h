@@ -20,7 +20,7 @@ private:
 
   bool setIO(ur_msgs::SetIORequest& req, ur_msgs::SetIOResponse& resp)
   {
-    LOG_INFO("setIO called with [%d, %d]", req.fun, req.pin);
+    // LOG_INFO("setIO called with [%d, %d]", req.fun, req.pin);
     bool res = false;
     bool flag = req.state > 0.0 ? true : false;
     switch (req.fun)
