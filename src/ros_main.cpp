@@ -7,12 +7,14 @@
 #include "ur_modern_driver/log.h"
 #include "ur_modern_driver/pipeline.h"
 #include "ur_modern_driver/ros/action_server.h"
+#include "ur_modern_driver/ros/wp_action_server.h"
 #include "ur_modern_driver/ros/controller.h"
 #include "ur_modern_driver/ros/io_service.h"
 #include "ur_modern_driver/ros/mb_publisher.h"
 #include "ur_modern_driver/ros/rt_publisher.h"
 #include "ur_modern_driver/ros/service_stopper.h"
 #include "ur_modern_driver/ros/trajectory_follower.h"
+#include "ur_modern_driver/ros/waypoint_follower.h"
 #include "ur_modern_driver/ur/commander.h"
 #include "ur_modern_driver/ur/factory.h"
 #include "ur_modern_driver/ur/messages.h"
@@ -103,9 +105,11 @@ int main(int argc, char **argv)
   vector<IConsumer<RTPacket> *> rt_vec{ &rt_pub };
 
   TrajectoryFollower traj_follower(*rt_commander, local_ip, args.reverse_port, factory.isVersion3());
+  WaypointFollower waypoint_follower(*rt_commander);
 
   ROSController *controller(nullptr);
   ActionServer *action_server(nullptr);
+  WPActionServer *wp_action_server(nullptr);
   if (args.use_ros_control)
   {
     LOG_INFO("ROS control enabled");
@@ -119,6 +123,9 @@ int main(int argc, char **argv)
     action_server = new ActionServer(traj_follower, args.joint_names, args.max_velocity);
     rt_vec.push_back(action_server);
     services.push_back(action_server);
+
+    wp_action_server = new WPActionServer(waypoint_follower, args.max_velocity);
+    services.push_back(wp_action_server);
   }
 
   MultiConsumer<RTPacket> rt_cons(rt_vec);
@@ -146,6 +153,9 @@ int main(int argc, char **argv)
 
   if (action_server)
     action_server->start();
+
+  if (wp_action_server)
+    wp_action_server->start();
 
   ros::spin();
 

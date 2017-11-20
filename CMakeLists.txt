@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 2.8.3)
 project(ur_modern_driver)
 
 
@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
   sensor_msgs
-  std_srvs
+  std_msgs
   trajectory_msgs
   ur_msgs
   tf
@@ -55,12 +55,11 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+# Generate messages in the 'msg' folder
+add_message_files(
+  FILES
+  JointConfiguration.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -70,17 +69,16 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+add_action_files(
+  FILES
+  FollowWaypoints.action
+)
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   control_msgs#   geometry_msgs#   sensor_msgs#   trajectory_msgs#   ur_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  control_msgs   geometry_msgs   sensor_msgs   trajectory_msgs   ur_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -113,8 +111,9 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES ur_hardware_interface
+#  LIBRARIES ur_modern_driver
   CATKIN_DEPENDS hardware_interface controller_manager actionlib control_msgs geometry_msgs roscpp sensor_msgs trajectory_msgs ur_msgs
+  DEPENDS ur_hardware_interface
 )
 
 ###########
@@ -126,16 +125,14 @@ include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
 CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
 if(COMPILER_SUPPORTS_CXX11)
-    add_compile_options(-std=c++11)
+    set(CMAKE_CXX_FLAGS "-std=c++11")
 elseif(COMPILER_SUPPORTS_CXX0X)
-    add_compile_options(-std=c++0x)
+    set(CMAKE_CXX_FLAGS "-std=c++0x")
 else()
     message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler. Suggested solution: update the pkg build-essential ")
 endif()
 
-add_compile_options(-Wall)
-add_compile_options(-Wextra)
-add_compile_options(-Wno-unused-parameter)
+set(CMAKE_CXX_FLAGS "-g -Wall -Wextra -Wno-unused-parameter ${CMAKE_CXX_FLAGS}")
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
@@ -162,10 +159,12 @@ target_link_libraries(ur_hardware_interface
 ## Declare a C++ executable
 set(${PROJECT_NAME}_SOURCES
     src/ros/action_server.cpp
+    src/ros/wp_action_server.cpp
     src/ros/mb_publisher.cpp
     src/ros/rt_publisher.cpp
     src/ros/service_stopper.cpp
     src/ros/trajectory_follower.cpp
+    src/ros/waypoint_follower.cpp
     src/ur/stream.cpp
     src/ur/server.cpp
     src/ur/commander.cpp
@@ -226,3 +225,4 @@ if (CATKIN_ENABLE_TESTING)
   catkin_add_gtest(ur_modern_driver_test ${${PROJECT_NAME}_SOURCES} ${${PROJECT_NAME}_TEST_SOURCES} tests/main.cpp)
   target_link_libraries(ur_modern_driver_test ur_hardware_interface ${catkin_LIBRARIES})
 endif()
+

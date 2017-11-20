@@ -48,7 +48,7 @@ def driverProg():
 	end
 
   socket_open("{{SERVER_IP_REPLACE}}", {{SERVER_PORT_REPLACE}})
-
+  
   thread_servo = run servoThread()
   keepalive = 1
   while keepalive > 0:
