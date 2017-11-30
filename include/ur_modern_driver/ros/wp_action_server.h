@@ -7,6 +7,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <sensor_msgs/JointState.h>
 #include <set>
 #include <thread>
 #include <ur_modern_driver/FollowWaypointsAction.h>
@@ -27,8 +28,7 @@ private:
 
   ros::NodeHandle nh_;
   Server as_;
-
-  double max_velocity_;
+  ros::Subscriber joint_state_sub_;
 
   GoalHandle curr_gh_;
   std::atomic<bool> interrupt_traj_;
@@ -43,6 +43,7 @@ private:
 
   void onGoal(GoalHandle gh);
   void onCancel(GoalHandle gh);
+  void jointStateCallback(const sensor_msgs::JointState& msg);
 
   bool validate(GoalHandle& gh, Result& res);
   bool validateState(GoalHandle& gh, Result& res);
@@ -55,7 +56,7 @@ private:
   void waypointThread();
 
 public:
-  WPActionServer(WaypointFollower& wp_follower, double max_velocity);
+  WPActionServer(WaypointFollower& wp_follower);
   virtual void onRobotStateChange(RobotState state);
   void start();
 };

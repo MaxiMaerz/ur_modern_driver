@@ -124,7 +124,7 @@ int main(int argc, char **argv)
     rt_vec.push_back(action_server);
     services.push_back(action_server);
 
-    wp_action_server = new WPActionServer(waypoint_follower, args.max_velocity);
+    wp_action_server = new WPActionServer(waypoint_follower);
     services.push_back(wp_action_server);
   }
 

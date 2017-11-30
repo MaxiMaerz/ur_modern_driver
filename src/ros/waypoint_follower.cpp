@@ -1,5 +1,6 @@
 #include "ur_modern_driver/ros/waypoint_follower.h"
 #include <endian.h>
+#include <chrono>
 #include <cmath>
 #include <ros/ros.h>
 
@@ -14,6 +15,7 @@ static const std::string MOVEL_PROGRAM = R"(movel([{{J0}}, {{J1}}, {{J2}}, {{J3}
 
 WaypointFollower::WaypointFollower(URCommander &commander)
   : running_(false)
+  , robot_moving_(false)
   , commander_(commander)
 {
   std::string res(WAYPOINT_PROGRAM);
@@ -22,8 +24,20 @@ WaypointFollower::WaypointFollower(URCommander &commander)
   program_ = res;
 }
 
+bool WaypointFollower::is_moving()
+{
+    return robot_moving_;
+}
+
+void WaypointFollower::ioCallback(const ur_msgs::IOStates::ConstPtr& msg)
+{
+    robot_moving_ = msg->digital_out_states[15].state;
+    return;
+}
+
 bool WaypointFollower::start()
 {
+  sub_ = nh_.subscribe("ur_driver/io_states", 1, &WaypointFollower::ioCallback, this);
   return (running_ = true);
 }
 
@@ -33,11 +47,12 @@ bool WaypointFollower::execute(std::vector<WaypointPoint> &waypoints, float max_
     return false;
 
   std::string program("");
-  
+  program.append("set_configurable_digital_out(7,True)\n");
+
   for (const auto& point : waypoints)
   {
-    LOG_INFO("waypointfollower point: ([%f,%f,%f,%f,%f,%f])", point.positions[0], point.positions[1], point.positions[2], point.positions[3], point.positions[4], point.positions[5]);
-    LOG_INFO("tolerance: %f", point.tolerance);
+    //LOG_INFO("waypointfollower point: ([%f,%f,%f,%f,%f,%f])", point.positions[0], point.positions[1], point.positions[2], point.positions[3], point.positions[4], point.positions[5]);
+    //LOG_INFO("tolerance: %f", point.tolerance);
 
     std::string movel(MOVEL_PROGRAM);
     for (size_t p=0; p<point.positions.size(); p++)
@@ -50,29 +65,30 @@ bool WaypointFollower::execute(std::vector<WaypointPoint> &waypoints, float max_
     movel.replace(movel.find("{{TOL}}"), 7, std::to_string(point.tolerance));
     program.append(movel);
   }
+  program.append("set_configurable_digital_out(7,False)\n");
   std::string res(WAYPOINT_PROGRAM);
   res.replace(res.find(PROGRAM_BODY_REPLACE), PROGRAM_BODY_REPLACE.length(), program);
-  // TODO why only second program is executed??
-  stop();
   program_ = res;
-  return uploadProgram();
+
+  if (!uploadProgram())
+      return false;
+
+  return true;
 }
 
-void WaypointFollower::stop()
+void WaypointFollower::stop(float max_acceleration)
 {
   if (!running_)
     return;
 
   LOG_INFO("Writing waypoint stop program");
   std::string res(WAYPOINT_PROGRAM);
-  // TODO stopl with max acceleration
-  // make stop string std::string("stopl()")
-  //res.replace(res.find(PROGRAM_BODY_REPLACE), PROGRAM_BODY_REPLACE.length(), stop string);
-  std::string stop_popup("popup(\"stop\", title=\"Stop Popup\")");
-  res.replace(res.find(PROGRAM_BODY_REPLACE), PROGRAM_BODY_REPLACE.length(), stop_popup);
+  std::string stopl = std::string("stopl(")+std::to_string(max_acceleration)+std::string(")");
+  res.replace(res.find(PROGRAM_BODY_REPLACE), PROGRAM_BODY_REPLACE.length(), stopl);
   program_ = res;
   uploadProgram();
-
+    
+  sub_.shutdown();
   running_ = false;
 }
 
@@ -84,7 +100,5 @@ bool WaypointFollower::uploadProgram()
     LOG_ERROR("Program upload failed!");
     return false;
   }
-  std::cout << program_ << std::endl;
-  LOG_INFO("Uploaded waypoint program to robot");
   return true;
 }

@@ -1,16 +1,20 @@
 #include "ur_modern_driver/ros/wp_action_server.h"
 #include <cmath>
 
-WPActionServer::WPActionServer(WaypointFollower& wp_follower, double max_velocity)
+WPActionServer::WPActionServer(WaypointFollower& wp_follower)
   : as_(nh_, "follow_waypoints", boost::bind(&WPActionServer::onGoal, this, _1),
         boost::bind(&WPActionServer::onCancel, this, _1), false)
-  , max_velocity_(max_velocity)
   , interrupt_traj_(false)
   , has_goal_(false)
   , running_(false)
   , wp_follower_(wp_follower)
   , state_(RobotState::Error) 
 {
+}
+
+void jointStateCallback(const sensor_msgs::JointState& msg)
+{
+    ;
 }
 
 void WPActionServer::start()
@@ -69,6 +73,8 @@ void WPActionServer::onGoal(GoalHandle gh)
 
 void WPActionServer::onCancel(GoalHandle gh)
 {
+  wp_follower_.stop(gh.getGoal()->max_acceleration);
+
   interrupt_traj_ = true;
   // wait for goal to be interrupted
   std::lock_guard<std::mutex> lock(wp_mutex_);
@@ -154,16 +160,13 @@ bool WPActionServer::try_execute(GoalHandle& gh, Result& res)
 
 void WPActionServer::waypointThread()
 {
-  LOG_INFO("Trajectory thread started");
+  LOG_INFO("Waypoints thread started");
 
   while (running_)
   {
     std::unique_lock<std::mutex> lk(wp_mutex_);
     if (!wp_cv_.wait_for(lk, std::chrono::milliseconds(100), [&] { return running_ && has_goal_; }))
       continue;
-
-    LOG_INFO("Trajectory received and accepted");
-    curr_gh_.setAccepted();
 
     auto goal = curr_gh_.getGoal();
 
@@ -185,6 +188,9 @@ void WPActionServer::waypointThread()
         LOG_ERROR("Received unequal size of waypoints (%zu) and tolerances (%zu)", goal->waypoints.size(), goal->path_tolerances.size());
         return;
     }
+
+    LOG_INFO("Waypoints received and accepted");
+    curr_gh_.setAccepted();
 
     std::vector<WaypointPoint> waypoints;
     for (size_t w=0; w<goal->waypoints.size(); w++)
@@ -210,6 +216,15 @@ void WPActionServer::waypointThread()
     {
       if (wp_follower_.execute(waypoints, goal->max_velocity, goal->max_acceleration))
       {
+        // wait a bit such that robot is moving, then check for robot stopping
+        ros::Rate loop_rate(125);
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        while (!interrupt_traj_ && wp_follower_.is_moving())
+        {
+          //LOG_INFO("is moving %d", wp_follower_.is_moving());
+          ros::spinOnce();
+          loop_rate.sleep();
+        }
         // interrupted goals must be handled by interrupt trigger
         if (!interrupt_traj_)
         {
@@ -224,17 +239,18 @@ void WPActionServer::waypointThread()
       {
         LOG_INFO("Waypoints failed");
         res.error_code = -100;
-        res.error_string = "Connection to robot was lost";
+        res.error_string = "Waypoints failed";
         curr_gh_.setAborted(res, res.error_string);
       }
 
-      wp_follower_.stop();
+      wp_follower_.stop(goal->max_acceleration);
+      wp_follower_.stop(goal->max_acceleration);
     }
     else
     {
       LOG_ERROR("Failed to start waypoint follower!");
       res.error_code = -100;
-      res.error_string = "Robot connection could not be established";
+      res.error_string = "Failed to start waypoint follower";
       curr_gh_.setAborted(res, res.error_string);
     }
 
