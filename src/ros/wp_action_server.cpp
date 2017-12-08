@@ -73,6 +73,7 @@ void WPActionServer::onGoal(GoalHandle gh)
 
 void WPActionServer::onCancel(GoalHandle gh)
 {
+  LOG_INFO("canceling goal now");
   wp_follower_.stop(gh.getGoal()->max_acceleration);
 
   interrupt_traj_ = true;
@@ -83,6 +84,7 @@ void WPActionServer::onCancel(GoalHandle gh)
   res.error_code = -100;
   res.error_string = "Goal cancelled by client";
   gh.setCanceled(res);
+  LOG_INFO("canceled goal");
 }
 
 bool WPActionServer::validate(GoalHandle& gh, Result& res)
@@ -243,7 +245,6 @@ void WPActionServer::waypointThread()
         curr_gh_.setAborted(res, res.error_string);
       }
 
-      wp_follower_.stop(goal->max_acceleration);
       wp_follower_.stop(goal->max_acceleration);
     }
     else

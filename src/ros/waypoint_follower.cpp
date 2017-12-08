@@ -83,13 +83,14 @@ void WaypointFollower::stop(float max_acceleration)
 
   LOG_INFO("Writing waypoint stop program");
   std::string res(WAYPOINT_PROGRAM);
-  std::string stopl = std::string("stopl(")+std::to_string(max_acceleration)+std::string(")");
+  std::string stopl = std::string("stopl(")+std::to_string(max_acceleration)+std::string(")\n");
+  stopl.append("set_configurable_digital_out(7,False)\n");
   res.replace(res.find(PROGRAM_BODY_REPLACE), PROGRAM_BODY_REPLACE.length(), stopl);
   program_ = res;
   uploadProgram();
-    
   sub_.shutdown();
   running_ = false;
+  LOG_INFO("uploaded stop");
 }
 
 bool WaypointFollower::uploadProgram()
